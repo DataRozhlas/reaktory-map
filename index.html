@@ -7,7 +7,7 @@
 <select id="selector">
     <option value="1955,1986">Období 1955 - 1986</option>
     <option value="1987,2000">Období 1987 - 2000</option>
-    <option value="2001,3000">Období 2000 a později</option>
+    <option value="2001,2100">Období 2000 a později</option>
 </select>
 <div id="map"></div>
 <div id="ttip"></div>
@@ -36,14 +36,19 @@
     });
 
     var statusColor = {
-        'uzavřená': '#e41a1c',
-        'plánovaná': '#377eb8',
-        'výstavba': '#984ea3',
-        'funkční': '#4daf4a'
+        'start': '#4daf4a',
+        'closed': '#e41a1c',
+        'planned': '#ff7f00'
     };
-    var cSize = d3.scalePow().exponent(0.5).domain([0, 8]).range([100, 300]);
+
+    var catName = {
+        'start': 'Zahájena stavba reaktorů: ',
+        'closed': 'Uzavřeno reaktorů: ',
+        'planned': 'Plánováno reaktorů: '
+    };
+    
     function cRadius(val) {
-        return Math.sqrt((cSize(val) / Math.PI))
+        return Math.sqrt(val / Math.PI)
     }
 
     function drawMap(startPeriod) {
@@ -52,20 +57,30 @@
         });
         tiles.addTo(map)
         
-        console.log(startPeriod)
-        var reaktorySel = Object.values(reaktory).filter(re => (re.start >= startPeriod[0]) & (re.start <= startPeriod[1])); //filtr podle casu
-        console.log(reaktorySel.length)
+        var reaktorySel = Object.values(reaktory).filter(re => 
+            ((re.start >= startPeriod[0]) & (re.start <= startPeriod[1])) 
+            | ((re.zavreno >= startPeriod[0]) & (re.zavreno <= startPeriod[1]))  //filtr podle casu
+        );
+
         var nukePlants = {};
         Object.values(reaktorySel).forEach(function(re) { //rozdeleni do kategorii, grouping po elektrarnach
             if (!([re.lat, re.long] in nukePlants)) {
                 nukePlants[[re.lat, re.long]] = {
-                    'funkční': [],
-                    'uzavřená': [],
-                    'plánovaná': [],
-                    'výstavba': []
+                    'start': [],
+                    'closed': [],
+                    'planned': [],
                 };
             }
-            nukePlants[[re.lat, re.long]][re.stav].push(re)
+            // rozdeleni do kat. podle stavu data zmeny
+            if (((re.start >= startPeriod[0]) & (re.start <= startPeriod[1])) & (re.stav != 'plánovaná')) {
+                nukePlants[[re.lat, re.long]]['start'].push(re)
+            }
+            if ((re.zavreno >= startPeriod[0]) & (re.zavreno <= startPeriod[1])) {
+                nukePlants[[re.lat, re.long]]['closed'].push(re)
+            }
+            if (((re.start >= startPeriod[0]) & (re.start <= startPeriod[1])) & (re.stav == 'plánovaná')) {
+                nukePlants[[re.lat, re.long]]['planned'].push(re)
+            }
         });
 
     Object.keys(nukePlants).forEach(function(plant) {
@@ -78,7 +93,7 @@
             var len = nukePlants[plant][cat].length;
             if (len > 0) {
                 markers.push(L.circleMarker(plant.split(',').map(Number), {
-                    radius: cRadius(len),
+                    radius: cRadius(len * 120),
                     color: '#bdbdbd',
                     weight: 1,
                     fillColor: statusColor[cat],
@@ -86,14 +101,14 @@
                 }).on('click', function(e) {
                     var ttipHead,
                         ttipBody = '';
-                    var p = e.latlng;
+                    var p = e.target._latlng;
                     var data = nukePlants[[p.lat, p.lng]];
-                    Object.values(data).forEach(function(cat) {
-                        if (cat.length > 0) {
-                            ttipHead = 'Elektrárna ' + cat[0].platz + ', ' + cat[0].stat;
-                            ttipBody += '<br>' + cat[0].stav + ': ' + cat.length + '<br>'
+                    Object.keys(data).forEach(function(cname) {
+                        var c = data[cname]
+                        if (c.length > 0) {
+                            ttipHead = 'Elektrárna ' + c[0].platz + ', ' + c[0].stat + ', výkon ' + c[0].kapacita + ' MWh';
+                            ttipBody += '<br>' + catName[cname] + c.length
                         }
-                        
                     })
                     document.getElementById('ttip').innerHTML = ttipHead + ttipBody;
                 })
