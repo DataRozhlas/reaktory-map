@@ -107,7 +107,20 @@
                         var c = data[cname]
                         if (c.length > 0) {
                             ttipHead = 'Elektrárna ' + c[0].platz + ', ' + c[0].stat + ', výkon ' + c[0].kapacita + ' MWh';
-                            ttipBody += '<br>' + catName[cname] + c.length
+                            
+                            //vypisovat roky, pruda jak prase z těchhle dat
+                            var years = [];
+                            if ((cname == 'start') | (cname == 'planned')) {
+                                c.forEach(function(v) {
+                                    years.push(v.start)
+                                })
+                            } else if (cname == 'closed') {
+                                c.forEach(function(v) {
+                                    years.push(v.zavreno)
+                                })
+                            }
+                            ttipBody += '<br>' + catName[cname] + c.length + ' (' 
+                            + String(Array.from(new Set(years))).replace(/,/g, ', ') + ')'
                         }
                     })
                     document.getElementById('ttip').innerHTML = ttipHead + ttipBody;
